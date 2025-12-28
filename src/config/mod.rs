@@ -1,24 +1,89 @@
-use crate::fs;
-use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
+use {
+    crate::fs,
+    directories::ProjectDirs,
+    std::{
+        fmt,
+        path::{Path, PathBuf},
+        str::FromStr,
+    },
+};
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ShortcutKV {
-    pub key: String,
-    pub value: String
+pub enum ConfigVersion {
+    V0,
 }
 
+/// Running `$ {command} {key}` will be equivalent to doing `$ cd {value}`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShortcutKV {
+    /// Key for the shortcut.
+    pub key: String,
+    /// Absoute path of the target directory.
+    pub value: String,
+}
+
+/// Data persisted in the config file.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Config {
+    /// Version of config, needed for correct deserialization.
+    /// For serialization, the latest version will always be used.
+    /// Currently 0.1.0 it the only valid version.
+    pub version: ConfigVersion,
+    /// Directory in PATH in which the command executable is located.
+    pub path_location: String,
+    /// Name of the exectuable to do the cd command using the shortcuts.
     pub command: String,
-    pub shortcuts: Vec<ShortcutKV>
+    /// List of all shortcuts.
+    pub shortcuts: Vec<ShortcutKV>,
+}
+
+pub enum ConfigAddResult {
+    Created(ShortcutKV),
+    Updated(ShortcutKV, ShortcutKV),
+    NoChange,
+}
+
+pub enum ConfigRemoveResult {
+    Removed(ShortcutKV),
+    NotFound,
+}
+
+const ORGANIZATION: &str = "niquefaDiego";
+const APPLICATION: &str = "Shortcuts";
+const CONFIG_FILE_NAME: &str = "shortcuts.config";
+
+impl Config {
+    pub fn latest() -> ConfigVersion {
+        ConfigVersion::V0
+    }
+}
+
+impl fmt::Display for ConfigVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0.1.0")
+    }
+}
+
+impl FromStr for ConfigVersion {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "0.1.0" => Ok(ConfigVersion::V0),
+            _ => {
+                let msg = format!("Invalid config version \"{}\".", s);
+                Err(msg.to_string())
+            }
+        }
+    }
 }
 
 impl Config {
     pub fn serialize(&self) -> Vec<String> {
         let mut ans: Vec<String> = Vec::new();
-        ans.reserve_exact(self.shortcuts.len()*2+1);
+        ans.reserve_exact(self.shortcuts.len() * 2 + 3);
+        ans.push(self.version.to_string());
         ans.push(self.command.clone());
+        ans.push(self.path_location.clone());
         for shortcut in &self.shortcuts {
             ans.push(shortcut.key.clone());
             ans.push(shortcut.value.clone());
@@ -27,52 +92,72 @@ impl Config {
     }
 
     pub fn deserialize(lines: Vec<String>) -> Result<Self, String> {
-        if lines.len() == 0 { return Err("Empty config file".to_string()); }
-        if lines.len()%2 == 0 {
+        const HEADER_LINES: usize = 3;
+        if lines.len() < HEADER_LINES {
+            let msg = format!("Config must contain at least {} lines", HEADER_LINES);
+            return Err(msg);
+        }
+        if lines.len() % 2 == 0 {
             return Err("Config file must have an odd number of lines".to_string());
         }
-        let command = lines[0].clone();
+        let version = ConfigVersion::from_str(&lines[0])?;
+        let command = lines[1].clone();
+        let path_location = lines[2].clone();
         let mut shortcuts: Vec<ShortcutKV> = vec![];
-        shortcuts.reserve((lines.len()-1)/2);
-        for i in (1..lines.len()).step_by(2) {
-            shortcuts.push(ShortcutKV{
+        shortcuts.reserve((lines.len() - 3) / 2);
+        for i in (3..lines.len()).step_by(2) {
+            shortcuts.push(ShortcutKV {
                 key: lines[i].clone(),
-                value: lines[i+1].clone()
+                value: lines[i + 1].clone(),
             });
         }
-        Ok(Self{
+        Ok(Self {
+            version,
+            path_location,
             command,
-            shortcuts
+            shortcuts,
         })
     }
 
-    pub fn add(&mut self, key: String, value: String) -> Result<(), String> {
-        if self.shortcuts.iter().any(|x| x.key == key) {
-            return Err(format!("Key \"{}\" is already present in shortcuts", key).to_string());
+    pub fn add(&mut self, key: String, value: String) -> Result<ConfigAddResult, String> {
+        match self.shortcuts.iter().position(|x| x.key == key) {
+            Some(position) => {
+                if value == self.shortcuts[position].value {
+                    return Ok(ConfigAddResult::NoChange);
+                }
+                let existing = self.shortcuts[position].clone();
+                self.shortcuts[position].value = value;
+                let updated = self.shortcuts[position].clone();
+                return Ok(ConfigAddResult::Updated(existing, updated));
+            }
+            None => {
+                let new_shortcut = ShortcutKV { key, value };
+                self.shortcuts.push(new_shortcut.clone());
+                self.shortcuts.sort_by(|a, b| a.key.cmp(&b.key));
+                Ok(ConfigAddResult::Created(new_shortcut))
+            }
         }
-        self.shortcuts.push(ShortcutKV{key, value});
-        self.shortcuts.sort_by(|a, b| a.key.cmp(&b.key));
-        Ok(())
     }
 
-    pub fn remove(&mut self, key: String) -> Result<String, String> {
+    pub fn remove(&mut self, key: String) -> Result<ConfigRemoveResult, String> {
         match self.shortcuts.iter().position(|x| x.key == key) {
-            None => Err(format!("Key \"{}\" is not present in shortcuts", key).to_string()),
+            None => Ok(ConfigRemoveResult::NotFound),
             Some(position) => {
-                let value = self.shortcuts[position].value.clone();
+                let removed_value = self.shortcuts[position].clone();
                 self.shortcuts.remove(position);
-                Ok(value)
+                Ok(ConfigRemoveResult::Removed(removed_value))
             }
         }
     }
 }
 
 fn get_project_dirs() -> Result<ProjectDirs, String> {
-    match ProjectDirs::from("", "niquefaDiego", "Shortcuts") {
+    match ProjectDirs::from("", ORGANIZATION, APPLICATION) {
         Some(proj_dirs) => Ok(proj_dirs),
         None => Err(
             "No valid home directory path could be retrieved from the operating system."
-            .to_string())
+                .to_string(),
+        ),
     }
 }
 
@@ -80,24 +165,34 @@ fn get_config_file() -> Result<PathBuf, String> {
     let proj_dirs = get_project_dirs()?;
     let dir = proj_dirs.config_local_dir();
     fs::ensure_dir(dir)?;
-    Ok(PathBuf::from(dir).join("shortcuts.txt"))
+    Ok(PathBuf::from(dir).join(CONFIG_FILE_NAME))
 }
 
 fn read_config(config_file: &Path) -> Result<Option<Config>, String> {
     match fs::read_lines(config_file)? {
         Some(content) => {
-            let config = Config::deserialize(content)?;
+            let config = match Config::deserialize(content) {
+                Ok(config) => config,
+                Err(err) => {
+                    let msg = format!(
+                        "Corrupted config file: \"{}\".\n{}",
+                        config_file.display(),
+                        err
+                    );
+                    return Err(msg.to_string());
+                }
+            };
             Ok(Some(config))
         }
-        None => Ok(None) 
+        None => Ok(None),
     }
 }
 
-fn get_config_from_file(config_file: &Path) -> Result<Config, String>{ 
+fn get_config_from_file(config_file: &Path) -> Result<Config, String> {
     match read_config(config_file) {
         Ok(Some(config)) => Ok(config),
         Ok(None) => Err("Config file not found. Run one-time setup (see --help)".to_string()),
-        Err(err) => Err(err)
+        Err(err) => Err(err),
     }
 }
 
@@ -106,34 +201,43 @@ pub fn get_config() -> Result<Config, String> {
     get_config_from_file(&config_file)
 }
 
-pub fn add_shortcut(key: String, value: String) -> Result<(), String> {
+pub fn add_shortcut(key: &str, path: &str) -> Result<(Config, ConfigAddResult), String> {
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
-    config.add(key.clone(), value.clone())?;
+    let add_result = config.add(key.to_string(), path.to_string())?;
     let serialized_config = config.serialize();
     fs::write_lines(&config_file, serialized_config)?;
-    println!("Successfully added shortcut {} -> {}", key, value);
-    Ok(())
+    Ok((config, add_result))
 }
 
-pub fn remove_shortcut(key: String) -> Result<(), String> {
+pub fn remove_shortcut(key: &str) -> Result<(Config, ConfigRemoveResult), String> {
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
-    let value = config.remove(key.clone())?;
+    let remove_result = config.remove(key.to_string())?;
     let serialized_config = config.serialize();
     fs::write_lines(&config_file, serialized_config)?;
-    println!("Successfully removed shortcut {} -> {}", key, value);
-    Ok(())
+    Ok((config, remove_result))
 }
 
-pub fn create_config(command: &str) -> Result<(), String> {
+pub fn create_config(command: &str, path_location: &Path) -> Result<Config, String> {
+    let path_location = fs::to_absolute_path(path_location)?;
+    let path_location = path_location.to_string_lossy();
     let config_file = get_config_file()?;
     let config = match read_config(&config_file)? {
-        Some(config) => Config { command: command.to_string(), ..config },
-        None => Config { command: command.to_string(), shortcuts: vec![] }
+        Some(config) => Config {
+            command: command.to_string(),
+            ..config
+        },
+        None => Config {
+            version: Config::latest(),
+            path_location: path_location.to_string(),
+            command: command.to_string(),
+            shortcuts: vec![],
+        },
     };
     let serialized_config = config.serialize();
-    fs::write_lines(&config_file, serialized_config)
+    fs::write_lines(&config_file, serialized_config)?;
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -143,30 +247,34 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let c0 = Config {
+            version: ConfigVersion::V0,
+            path_location: "C:\\Path".to_string(),
             command: "cd2".to_string(),
-            shortcuts: vec![]
+            shortcuts: vec![],
         };
         let c0_serialized = c0.serialize();
-        let c0_deserialized = Config::deserialize(c0_serialized)
-            .expect("Deserialization should work");
+        let c0_deserialized =
+            Config::deserialize(c0_serialized).expect("Deserialization should work");
         assert_eq!(c0, c0_deserialized);
 
         let c1 = Config {
+            version: ConfigVersion::V0,
+            path_location: "C:\\Path".to_string(),
             command: "changedir".to_string(),
             shortcuts: vec![
                 ShortcutKV {
                     key: "dls".to_string(),
-                    value: "C:\\Users\\user\\Downloads".to_string()
+                    value: "C:\\Users\\user\\Downloads".to_string(),
                 },
                 ShortcutKV {
                     key: "x84".to_string(),
-                    value: "C:\\Program Files (x84)".to_string()
-                }
-            ]
+                    value: "C:\\Program Files (x84)".to_string(),
+                },
+            ],
         };
         let c1_serialized = c1.serialize();
-        let c1_deserialized = Config::deserialize(c1_serialized)
-            .expect("Deserialization should work");
+        let c1_deserialized =
+            Config::deserialize(c1_serialized).expect("Deserialization should work");
         assert_eq!(c1, c1_deserialized);
     }
 }
