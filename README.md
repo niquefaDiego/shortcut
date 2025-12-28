@@ -7,9 +7,9 @@ Setup shortcuts for your `cd` in your Windows command lines (only CommandPrompt 
 
 To to avoid circular references there is a module hierarchy:
 
-- `main`
-- `config`, `shell`
-- `fs`
+```
+main -> lib -> shell -> config -> fs
+```
 
 A module `X` can only depend on code module `Y` if `X` is appears strictly before `Y` in the hierarchy.
 
