@@ -7,9 +7,11 @@ use {
 
 /// Use shortcuts to quickly cd (change directory) to common directories.
 ///
-/// Run one time set-up: $ shortcut setup --command s
+/// Run one time set-up: $ shortcut setup --command s --path-location C:\Path
 ///
 /// Add shortcuts:       $ shortcut add dl ~/Downloads
+///                      or
+///                      $ s + dl ~/Downloads
 ///
 /// cd with shortcut:    $ s dl
 #[derive(Parser, Debug)]
@@ -29,20 +31,26 @@ enum Command {
         /// Directory to place the executable, must be part of the PATH environment variable.
         #[arg(short, long)]
         path_location: PathBuf,
+        /// Value of $PROFILE variable in powershell.
+        #[arg(long)]
+        power_shell_profile: Option<PathBuf>,
     },
     /// Adds a shortcut.
+    /// After one-time setup you can do: $ {command} + <KEY> <TARGET>
     Add {
         /// Shortcut to use go to the target directory.
         key: String,
         /// Absolute or relative path to the target directory.
         target: PathBuf,
     },
-    /// Removes a shortcut
+    /// Removes a shortcut.
+    /// After one-time setup you can do: $ {command} - <KEY>
     Remove {
         /// Shortcut key to remove
         key: String,
     },
-    /// Lists all the existing shortcuts
+    /// Lists all the existing shortcuts.
+    /// After one-time setup you can do: $ {command} *
     List {},
     /// Get the target directory given a key, if there is not shortcut for the given key,
     /// then the key will be returned.
@@ -58,7 +66,8 @@ fn main() -> ExitCode {
         Command::Setup {
             command,
             path_location,
-        } => shortcut::setup(command, path_location),
+            power_shell_profile,
+        } => shortcut::setup(command, path_location, power_shell_profile),
         Command::Remove { key } => shortcut::remove(key),
         Command::Add { key, target } => shortcut::add(key, target),
         Command::List {} => shortcut::list(),

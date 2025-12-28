@@ -35,14 +35,19 @@ pub struct Config {
     pub command: String,
     /// List of all shortcuts.
     pub shortcuts: Vec<ShortcutKV>,
+
+    /// PowerShell profile locations
+    pub power_shell_profiles: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfigAddResult {
     Created(ShortcutKV),
     Updated(ShortcutKV, ShortcutKV),
     NoChange,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfigRemoveResult {
     Removed(ShortcutKV),
     NotFound,
@@ -84,6 +89,7 @@ impl Config {
         ans.push(self.version.to_string());
         ans.push(self.command.clone());
         ans.push(self.path_location.clone());
+        ans.push(self.power_shell_profiles.join(";"));
         for shortcut in &self.shortcuts {
             ans.push(shortcut.key.clone());
             ans.push(shortcut.value.clone());
@@ -91,21 +97,29 @@ impl Config {
         ans
     }
 
+    pub fn add_power_shell_profile(&mut self, profile: String) {
+        if !self.power_shell_profiles.contains(&profile) {
+            self.power_shell_profiles.push(profile);
+        }
+    }
+
     pub fn deserialize(lines: Vec<String>) -> Result<Self, String> {
-        const HEADER_LINES: usize = 3;
+        const HEADER_LINES: usize = 4;
         if lines.len() < HEADER_LINES {
             let msg = format!("Config must contain at least {} lines", HEADER_LINES);
             return Err(msg);
         }
-        if lines.len() % 2 == 0 {
-            return Err("Config file must have an odd number of lines".to_string());
+        if (lines.len() - HEADER_LINES) % 2 != 0 {
+            return Err("Config file has an invalid number of lines".to_string());
         }
         let version = ConfigVersion::from_str(&lines[0])?;
         let command = lines[1].clone();
         let path_location = lines[2].clone();
+        let power_shell_profiles: Vec<String> =
+            lines[3].clone().split(';').map(|x| x.to_string()).collect();
         let mut shortcuts: Vec<ShortcutKV> = vec![];
-        shortcuts.reserve((lines.len() - 3) / 2);
-        for i in (3..lines.len()).step_by(2) {
+        shortcuts.reserve((lines.len() - HEADER_LINES) / 2);
+        for i in (HEADER_LINES..lines.len()).step_by(2) {
             shortcuts.push(ShortcutKV {
                 key: lines[i].clone(),
                 value: lines[i + 1].clone(),
@@ -116,6 +130,7 @@ impl Config {
             path_location,
             command,
             shortcuts,
+            power_shell_profiles,
         })
     }
 
@@ -205,8 +220,10 @@ pub fn add_shortcut(key: &str, path: &str) -> Result<(Config, ConfigAddResult), 
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
     let add_result = config.add(key.to_string(), path.to_string())?;
-    let serialized_config = config.serialize();
-    fs::write_lines(&config_file, serialized_config)?;
+    if add_result != ConfigAddResult::NoChange {
+        let serialized_config = config.serialize();
+        fs::write_lines(&config_file, &serialized_config)?;
+    }
     Ok((config, add_result))
 }
 
@@ -214,29 +231,45 @@ pub fn remove_shortcut(key: &str) -> Result<(Config, ConfigRemoveResult), String
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
     let remove_result = config.remove(key.to_string())?;
-    let serialized_config = config.serialize();
-    fs::write_lines(&config_file, serialized_config)?;
+    if remove_result != ConfigRemoveResult::NotFound {
+        let serialized_config = config.serialize();
+        fs::write_lines(&config_file, &serialized_config)?;
+    }
     Ok((config, remove_result))
 }
 
-pub fn create_config(command: &str, path_location: &Path) -> Result<Config, String> {
+pub fn create_config(
+    command: &str,
+    path_location: &Path,
+    power_shell_profile: Option<PathBuf>,
+) -> Result<Config, String> {
     let path_location = fs::to_absolute_path(path_location)?;
     let path_location = path_location.to_string_lossy();
+    let power_shell_profile: Option<String> = match power_shell_profile {
+        Some(profile) => {
+            let profile: PathBuf = fs::to_absolute_path(&profile)?;
+            Some(profile.to_string_lossy().to_string())
+        }
+        None => None,
+    };
     let config_file = get_config_file()?;
     let config = match read_config(&config_file)? {
-        Some(config) => Config {
-            command: command.to_string(),
-            ..config
-        },
+        Some(config) => {
+            let mut config = config;
+            config.command = command.to_string();
+            power_shell_profile.map(|p| config.add_power_shell_profile(p));
+            config
+        }
         None => Config {
             version: Config::latest(),
             path_location: path_location.to_string(),
+            power_shell_profiles: power_shell_profile.into_iter().collect(),
             command: command.to_string(),
             shortcuts: vec![],
         },
     };
     let serialized_config = config.serialize();
-    fs::write_lines(&config_file, serialized_config)?;
+    fs::write_lines(&config_file, &serialized_config)?;
     Ok(config)
 }
 
@@ -249,6 +282,10 @@ mod tests {
         let c0 = Config {
             version: ConfigVersion::V0,
             path_location: "C:\\Path".to_string(),
+            power_shell_profiles: vec![
+                "C:\\Users\\foo\\OneDrive\\Documents\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1".to_string(),
+                "C:\\Users\\foo\\OneDrive\\Documents\\WindowsPowerShell\\Microsoft.PowerShellISE_profile.ps1".to_string()
+            ],
             command: "cd2".to_string(),
             shortcuts: vec![],
         };
@@ -260,6 +297,7 @@ mod tests {
         let c1 = Config {
             version: ConfigVersion::V0,
             path_location: "C:\\Path".to_string(),
+            power_shell_profiles: vec![],
             command: "changedir".to_string(),
             shortcuts: vec![
                 ShortcutKV {

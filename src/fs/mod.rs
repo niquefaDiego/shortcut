@@ -1,6 +1,6 @@
 use std::{
     io::ErrorKind,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 /// Ensures the given directory exists, creating as many of the parents directories as needed.
@@ -15,6 +15,14 @@ pub fn ensure_dir(directory: &Path) -> Result<(), String> {
             );
             Err(msg.to_string())
         }
+    }
+}
+
+/// Ensures the given directory exists, creating as many of the parents directories as needed.
+pub fn ensure_file_parent_dir(file: &Path) -> Result<(), String> {
+    match file.parent() {
+        Some(dir) => ensure_dir(dir),
+        None => Ok(()),
     }
 }
 
@@ -35,7 +43,7 @@ pub fn read_lines(file: &Path) -> Result<Option<Vec<String>>, String> {
 }
 
 /// Writes the given vector of lines into the file.
-pub fn write_lines(file: &Path, lines: Vec<String>) -> Result<(), String> {
+pub fn write_lines(file: &Path, lines: &Vec<String>) -> Result<(), String> {
     let file_content = lines.join("\n");
     match std::fs::write(file, file_content) {
         Ok(()) => {
@@ -91,10 +99,7 @@ pub fn to_absolute_path(path: &Path) -> Result<PathBuf, String> {
 
 fn to_absolute_path_internal(path: &Path) -> Result<PathBuf, String> {
     match std::path::absolute(&path) {
-        Ok(path) => {
-            dbg!(&path);
-            Ok(path)
-        }
+        Ok(path) => Ok(path),
         Err(err) => {
             let msg = format!("Error parsing path \"{}\": {}", path.display(), err);
             return Err(msg);
