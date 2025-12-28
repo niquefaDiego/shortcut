@@ -1,14 +1,13 @@
 use crate::config::Config;
 
 pub mod command_prompt;
-pub mod power_shell;
 mod copy_strs;
+pub mod power_shell;
 
-pub struct PowerShell {}
-pub struct CommandPrompt {}
+pub use command_prompt::CommandPrompt;
+pub use power_shell::PowerShell;
 
 pub trait Shell {
     fn name(&self) -> &'static str;
-    fn available(&self) -> Result<bool, String>;
     fn setup(&self, config: &Config) -> Result<(), String>;
 }

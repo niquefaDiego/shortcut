@@ -8,14 +8,9 @@ pub mod config;
 pub mod fs;
 pub mod shell;
 
-pub fn setup(
-    command: String,
-    path_location: PathBuf,
-    power_shell_profile: Option<PathBuf>,
-) -> Result<(), String> {
-    let config = config::create_config(&command, &path_location, power_shell_profile)?;
+pub fn setup(command: String, path_location: PathBuf) -> Result<(), String> {
+    let config = config::create_config(&command, &path_location)?;
     notify_config_change(&config)?;
-
     Ok(())
 }
 
@@ -90,11 +85,13 @@ pub fn get(key: String) -> Result<(), String> {
 // ----- private methods -----
 
 fn notify_config_change(config: &Config) -> Result<(), String> {
-    let command_prompt = CommandPrompt {};
-    if command_prompt.available()? {
-        command_prompt.setup(&config)?;
-        let power_shell = PowerShell {};
-        power_shell.setup(&config)?;
+    let cmd = CommandPrompt::new();
+    if let Ok(Some(cmd)) = cmd {
+        cmd.setup(&config)?;
+        let ps = PowerShell::new();
+        if let Ok(Some(ps)) = ps {
+            ps.setup(&config)?;
+        }
     }
     Ok(())
 }

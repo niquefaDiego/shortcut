@@ -1,23 +1,29 @@
 use {
-    super::{CommandPrompt, Shell, copy_strs as copy},
+    super::{Shell, copy_strs as copy},
     crate::{config::Config, fs},
     std::path::Path,
     which::which,
 };
 
-impl Shell for CommandPrompt {
-    fn name(&self) -> &'static str {
-        "Command Prompt (CMD)"
-    }
+pub struct CommandPrompt {}
+const CMD: &str = "Command Prompt (CMD)";
 
-    fn available(&self) -> Result<bool, String> {
+impl CommandPrompt {
+    pub fn new() -> Result<Option<CommandPrompt>, String> {
         match which("cmd") {
             Ok(location) => {
-                println!("{} found at {}", self.name(), location.display());
-                return Ok(true);
+                let instance = CommandPrompt {};
+                println!("{} found at {}", instance.name(), location.display());
+                Ok(Some(instance))
             }
-            Err(_) => Ok(false),
+            Err(msg) => Err(format!("Error finding {}: {}", CMD, msg).to_string()),
         }
+    }
+}
+
+impl Shell for CommandPrompt {
+    fn name(&self) -> &'static str {
+        CMD
     }
 
     fn setup(&self, config: &Config) -> Result<(), String> {
@@ -33,7 +39,7 @@ impl Shell for CommandPrompt {
 
 fn get_bat_file_content(config: &Config) -> Vec<String> {
     let mut x: Vec<String> = vec![];
-    x.reserve(30);
+    x.reserve(30 + config.shortcuts.len() * 2);
     x.push(format!(":: {}", copy::HEADER_COMMENT_1).to_string());
     x.push(format!(":: {}", copy::HEADER_COMMENT_2).to_string());
     x.push(r#"@ECHO OFF"#.to_string());

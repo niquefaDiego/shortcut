@@ -1,33 +1,77 @@
 use {
-    super::copy_strs as copy,
-    super::{PowerShell, Shell},
+    super::{Shell, copy_strs as copy},
     crate::{config::Config, fs},
-    std::path::PathBuf,
+    std::{path::PathBuf, process::Command},
     which::which,
 };
 
+const POWER_SHELL_EXE: &str = "PowerShell";
+
+pub struct PowerShell {
+    profile_location: String,
+}
+
+impl PowerShell {
+    pub fn new() -> Result<Option<PowerShell>, String> {
+        match get_power_shell_default_profile() {
+            Err(err) => Err(err),
+            Ok(None) => Ok(None),
+            Ok(Some(profile_location)) => Ok(Some(PowerShell { profile_location })),
+        }
+    }
+}
+
 impl Shell for PowerShell {
     fn name(&self) -> &'static str {
-        "PowerShell"
+        POWER_SHELL_EXE
     }
 
-    fn available(&self) -> Result<bool, String> {
-        match which("PowerShell") {
-            Ok(location) => {
-                println!("{} found at {}", self.name(), location.display());
-                return Ok(true);
-            }
-            Err(_) => Ok(false),
-        }
-    }
     fn setup(&self, config: &Config) -> Result<(), String> {
         let function = get_power_shell_function(&config);
-        for profile in &config.power_shell_profiles {
-            println!("Setting up {} with profile {}", self.name(), profile);
-            setup_power_shell_profile(&config, &profile, &function)?;
-        }
+        setup_power_shell_profile(&config, &self.profile_location, &function)?;
         Ok(())
     }
+}
+
+pub fn get_power_shell_default_profile() -> Result<Option<String>, String> {
+    // See the following docs for more info about PowerPhell profiles.
+    // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
+    println!("Finding powershell!");
+    let power_shell_exe = match which(POWER_SHELL_EXE) {
+        Ok(exe_location) => exe_location,
+        Err(_) => return Ok(None),
+    };
+    println!("{} found at {}", POWER_SHELL_EXE, power_shell_exe.display());
+    let mut command = Command::new(POWER_SHELL_EXE);
+    // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1
+    let command = command.args(["-Command", "Write-Output $PROFILE"]);
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(err) => {
+            let msg = format!("Could not get PowerShell default profile: {}", err);
+            return Err(msg.to_string());
+        }
+    };
+    if !output.status.success() {
+        let msg = r#"`PowerShell -Command "Write-Output" $PROFILE"` \
+                  exited with non-success status code"#;
+        return Err(msg.to_string());
+    }
+    // This will probably fail in some older versions of powershell, need some logic to parse
+    // different types of encoding.
+    let power_shell_output = match String::from_utf8(output.stdout) {
+        Ok(str) => str,
+        Err(err) => {
+            let msg = format!(
+                r#"Error decoding PowerShell output to get profile, \
+                      updating PowerShell might help: {}"#,
+                err
+            );
+            return Err(msg.to_string());
+        }
+    };
+    let profile_location = power_shell_output.trim().to_string();
+    Ok(Some(profile_location))
 }
 
 fn setup_power_shell_profile(
@@ -53,10 +97,11 @@ fn setup_power_shell_profile(
 
 fn get_power_shell_function(config: &Config) -> Vec<String> {
     let mut x = vec![];
+    x.reserve(70 + 2 * config.shortcuts.len());
     x.push(r#"# ---------- shortcut start ----------"#.to_string());
     x.push(format!("# {}", copy::HEADER_COMMENT_1).to_string());
     x.push(format!("# {}", copy::HEADER_COMMENT_2).to_string());
-    x.push(r#"function s {"#.to_string());
+    x.push(format!(r#"function {} {{"#, config.command).to_string());
     x.push(r#"    param ("#.to_string());
     x.push(r#"        [Parameter(Position = 0, Mandatory = $true)] [string]$p1,"#.to_string());
     x.push(r#"        [Parameter(Position = 1)] [string]$p2,"#.to_string());
