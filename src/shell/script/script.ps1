@@ -18,7 +18,7 @@ function s {
     } elseif ($p1 -eq "*") {
         shortcut list
     } else {
-        $dir = shortcut get $p2
+        $dir = shortcut get $p1
         Push-Location "$dir"
     }
 }
