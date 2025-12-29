@@ -1,11 +1,12 @@
 use {
-    super::{Shell, copy_strs as copy},
+    super::Shell,
     crate::{config::Config, fs},
     std::{path::PathBuf, process::Command},
     which::which,
 };
 
 const POWER_SHELL_EXE: &str = "PowerShell";
+const PROFILE_CONTENT: &str = include_str!("./script/script.ps1");
 
 pub struct PowerShell {
     profile_location: String,
@@ -26,7 +27,7 @@ impl Shell for PowerShell {
         POWER_SHELL_EXE
     }
 
-    fn setup(&self, config: &Config) -> Result<(), String> {
+    fn try_configure(&self, config: &Config) -> Result<(), String> {
         let function = get_power_shell_function(&config);
         setup_power_shell_profile(&config, &self.profile_location, &function)?;
         Ok(())
@@ -36,7 +37,6 @@ impl Shell for PowerShell {
 pub fn get_power_shell_default_profile() -> Result<Option<String>, String> {
     // See the following docs for more info about PowerPhell profiles.
     // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
-    println!("Finding powershell!");
     let power_shell_exe = match which(POWER_SHELL_EXE) {
         Ok(exe_location) => exe_location,
         Err(_) => return Ok(None),
@@ -81,93 +81,88 @@ fn setup_power_shell_profile(
 ) -> Result<(), String> {
     let profile = PathBuf::from(profile);
     let existing_profile_content = fs::read_lines(&profile)?;
-    dbg!(&config.command);
-    dbg!(&existing_profile_content);
     match existing_profile_content {
         None => {
             fs::ensure_file_parent_dir(&profile)?;
             fs::write_lines(&profile, function)?;
         }
-        Some(_) => {
-            todo!("Need to replace function with new one");
+        Some(existing_content) => {
+            let function: Vec<String> = get_power_shell_function(config);
+            let new_content = replace_file_content(existing_content, &function);
+            fs::write_lines(&profile, &new_content)?;
         }
     }
     Ok(())
 }
 
-fn get_power_shell_function(config: &Config) -> Vec<String> {
-    let mut x = vec![];
-    x.reserve(70 + 2 * config.shortcuts.len());
-    x.push(r#"# ---------- shortcut start ----------"#.to_string());
-    x.push(format!("# {}", copy::HEADER_COMMENT_1).to_string());
-    x.push(format!("# {}", copy::HEADER_COMMENT_2).to_string());
-    x.push(format!(r#"function {} {{"#, config.command).to_string());
-    x.push(r#"    param ("#.to_string());
-    x.push(r#"        [Parameter(Position = 0, Mandatory = $true)] [string]$p1,"#.to_string());
-    x.push(r#"        [Parameter(Position = 1)] [string]$p2,"#.to_string());
-    x.push(r#"        [Parameter(Position = 2)] [string]$p3"#.to_string());
-    x.push(r#"    )"#.to_string());
-    //
-    // {command} + <KEY> <TARGET>
-    x.push(r#"    if ($p1 -eq "+") {"#.to_string());
-    x.push(r#"        shortcut list"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] Running: shortcut add `"$p2`"""#.to_string());
-    x.push(r#"        shortcut add $key"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] shortcut add finished""#.to_string());
-
-    // {command} - <KEY>
-    x.push(r#"    } elseif ($p1 -eq "-") {"#.to_string());
-    x.push(r#"        if ($p2) {"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(
-        r#"            Write-Output "[PS] Running: shortcut remove `"$p2`" `"$p3`"""#.to_string(),
-    );
-    x.push(r#"            shortcut remove $key $Value"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"            Write-Output "[PS] shortcut remove finished""#.to_string());
-
-    // {command} -
-    x.push(r#"        } else {"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"            Write-Output "[PS] Running: Pop-Location""#.to_string());
-    x.push(r#"            Pop-Location"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"            Write-Output "[PS] Pop-Location finished""#.to_string());
-    x.push(r#"        }"#.to_string());
-
-    // {command} *
-    x.push(r#"    } elseif ($p1 -eq "*") {"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] Running: shortcut list""#.to_string());
-    x.push(r#"        shortcut list"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] shortcut list finished""#.to_string());
-
-    // {comand} <KEY>
-    for shortcut in &config.shortcuts {
-        x.push(format!(r#"    }} elseif ($p1 -eq "{}") {{"#, shortcut.key).to_string());
-        #[cfg(debug_assertions)]
-        x.push(
-            format!(
-                r#"        Write-Output "[PS] Using shortcut: `"${}`"""#,
-                shortcut.key
-            )
-            .to_string(),
-        );
-        x.push(format!(r#"        Push-Location "{}""#, shortcut.value).to_string());
+fn replace_file_content(existing_content: Vec<String>, new_content: &Vec<String>) -> Vec<String> {
+    assert!(new_content.len() > 0);
+    let fr = existing_content
+        .iter()
+        .position(|x| x.trim() == new_content[0].trim());
+    if let Some(fr) = fr {
+        let last_line = new_content
+            .last()
+            .expect("already asserted new_content.len() > 0")
+            .trim();
+        let to = existing_content
+            .iter()
+            .skip(fr)
+            .position(|x| x.trim() == last_line);
+        if let Some(to) = to {
+            let to = to + fr;
+            let mut updated_content = existing_content;
+            let suffix = updated_content[to + 1..].to_owned();
+            updated_content.truncate(fr);
+            updated_content.extend(new_content.clone());
+            updated_content.extend_from_slice(&suffix);
+            return updated_content;
+        }
     }
-    //
-    // If nothing above matches, do a normal CD with the /D flag to automatically change disk
-    x.push(r#"    } else {"#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] Running: Push-Location `"$p1`"""#.to_string());
-    x.push(r#"        Push-Location "$p1""#.to_string());
-    #[cfg(debug_assertions)]
-    x.push(r#"        Write-Output "[PS] Push-Location finished""#.to_string());
-    x.push(r#"    }"#.to_string());
-    x.push(r#"}"#.to_string());
-    x.push(r#"# ---------- shortcut end ----------"#.to_string());
-    x
+    let mut existing_content = existing_content;
+    existing_content.extend_from_slice(new_content);
+    existing_content
+}
+
+fn get_power_shell_function(config: &Config) -> Vec<String> {
+    let mut new_content: Vec<String> = PROFILE_CONTENT
+        .to_owned()
+        .split("\n")
+        .filter(|x| x.trim().len() > 0)
+        .map(|s| s.to_owned())
+        .collect();
+    new_content[3] = format!("function {} {{", config.command).to_string();
+    new_content
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_replace_file_content() {
+        let existing_content: Vec<String> = vec!["0", "1", "2", "X", "A", "B", "C", "D", "Y"]
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect();
+        let new_content: Vec<String> = vec!["X", "a", "b", "c", "Y"]
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect();
+        let expected: Vec<String> = vec!["0", "1", "2", "X", "a", "b", "c", "Y"]
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect();
+        let updated_content = replace_file_content(existing_content, &new_content);
+        assert_eq!(expected, updated_content);
+
+        let existing_content: Vec<String> = vec!["X", "1", "2", "3", "Y"]
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect();
+        let new_content = existing_content.clone();
+        let expected = existing_content.clone();
+        let updated_content = replace_file_content(existing_content, &new_content);
+        assert_eq!(expected, updated_content);
+    }
 }

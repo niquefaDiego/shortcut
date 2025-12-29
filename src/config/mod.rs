@@ -203,7 +203,7 @@ pub fn get_config() -> Result<Config, String> {
     get_config_from_file(&config_file)
 }
 
-pub fn add_shortcut(key: &str, path: &str) -> Result<(Config, ConfigAddResult), String> {
+pub fn add_shortcut(key: &str, path: &str) -> Result<ConfigAddResult, String> {
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
     let add_result = config.add(key.to_string(), path.to_string())?;
@@ -211,10 +211,10 @@ pub fn add_shortcut(key: &str, path: &str) -> Result<(Config, ConfigAddResult), 
         let serialized_config = config.serialize();
         fs::write_lines(&config_file, &serialized_config)?;
     }
-    Ok((config, add_result))
+    Ok(add_result)
 }
 
-pub fn remove_shortcut(key: &str) -> Result<(Config, ConfigRemoveResult), String> {
+pub fn remove_shortcut(key: &str) -> Result<ConfigRemoveResult, String> {
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
     let remove_result = config.remove(key.to_string())?;
@@ -222,7 +222,7 @@ pub fn remove_shortcut(key: &str) -> Result<(Config, ConfigRemoveResult), String
         let serialized_config = config.serialize();
         fs::write_lines(&config_file, &serialized_config)?;
     }
-    Ok((config, remove_result))
+    Ok(remove_result)
 }
 
 pub fn create_config(command: &str, path_location: &Path) -> Result<Config, String> {

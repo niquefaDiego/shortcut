@@ -42,10 +42,9 @@ pub fn read_lines(file: &Path) -> Result<Option<Vec<String>>, String> {
     }
 }
 
-/// Writes the given vector of lines into the file.
-pub fn write_lines(file: &Path, lines: &Vec<String>) -> Result<(), String> {
-    let file_content = lines.join("\n");
-    match std::fs::write(file, file_content) {
+/// Writes the given content to the file, overwritting existing file content.
+pub fn write_str(file: &Path, content: &str) -> Result<(), String> {
+    match std::fs::write(file, content) {
         Ok(()) => {
             println!("Updated file \"{}\"", file.display());
             Ok(())
@@ -68,6 +67,12 @@ pub fn write_lines(file: &Path, lines: &Vec<String>) -> Result<(), String> {
             }
         },
     }
+}
+
+/// Writes the given vector of lines into the file.
+pub fn write_lines(file: &Path, lines: &Vec<String>) -> Result<(), String> {
+    let file_content = lines.join("\n");
+    write_str(file, &file_content)
 }
 
 /// Converts a path to an absolute path, replacing the staring '~' component with the home directory

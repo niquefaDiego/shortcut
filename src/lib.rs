@@ -1,5 +1,5 @@
 use {
-    config::{Config, ConfigAddResult, ConfigRemoveResult},
+    config::{ConfigAddResult, ConfigRemoveResult},
     shell::{CommandPrompt, PowerShell, Shell},
     std::path::{Path, PathBuf},
 };
@@ -10,7 +10,23 @@ pub mod shell;
 
 pub fn setup(command: String, path_location: PathBuf) -> Result<(), String> {
     let config = config::create_config(&command, &path_location)?;
-    notify_config_change(&config)?;
+
+    // Find and configure command prompt
+    match CommandPrompt::new() {
+        Err(msg) => println!("Unexpected error looking for Command Prompt: {}", msg),
+        Ok(shell) => {
+            shell.map(|x| x.configure(&config));
+        }
+    };
+
+    // Find and configure power shell
+    match PowerShell::new() {
+        Err(msg) => println!("Unexpected error looking for PowerShell: {}", msg),
+        Ok(shell) => {
+            shell.map(|x| x.configure(&config));
+        }
+    }
+
     Ok(())
 }
 
@@ -28,18 +44,16 @@ pub fn list() -> Result<(), String> {
 pub fn add(key: String, target: PathBuf) -> Result<(), String> {
     let target = fs::to_absolute_path(&target)?;
     let target = target.to_string_lossy();
-    let (config, add_result) = config::add_shortcut(&key, &target)?;
+    let add_result = config::add_shortcut(&key, &target)?;
     match add_result {
         ConfigAddResult::NoChange => println!(
             "Nothing done, shortcut already exists: {} -> {}",
             key, target
         ),
         ConfigAddResult::Created(sc) => {
-            notify_config_change(&config)?;
             println!("Successfully added shortcut: {} -> {}", sc.key, sc.value)
         }
         ConfigAddResult::Updated(existing, added) => {
-            notify_config_change(&config)?;
             println!("Successfully updated shortcut.");
             println!(
                 "Existing shortcut was: {} -> {}",
@@ -52,11 +66,10 @@ pub fn add(key: String, target: PathBuf) -> Result<(), String> {
 }
 
 pub fn remove(key: String) -> Result<(), String> {
-    let (config, remove_result) = config::remove_shortcut(&key)?;
+    let remove_result = config::remove_shortcut(&key)?;
     match remove_result {
         ConfigRemoveResult::NotFound => println!("Did not find any shortcut for key \"{}\"", key),
         ConfigRemoveResult::Removed(removed) => {
-            notify_config_change(&config)?;
             println!(
                 "Successfully removed shortcut {} -> {}",
                 removed.key, removed.value
@@ -79,19 +92,5 @@ pub fn get(key: String) -> Result<(), String> {
         }
     }
     println!("{}", key);
-    Ok(())
-}
-
-// ----- private methods -----
-
-fn notify_config_change(config: &Config) -> Result<(), String> {
-    let cmd = CommandPrompt::new();
-    if let Ok(Some(cmd)) = cmd {
-        cmd.setup(&config)?;
-        let ps = PowerShell::new();
-        if let Ok(Some(ps)) = ps {
-            ps.setup(&config)?;
-        }
-    }
     Ok(())
 }
