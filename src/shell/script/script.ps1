@@ -3,15 +3,21 @@
 # See `$ shortcut -- help` for more info.
 function s {
     param (
-        [Parameter(Position = 0, Mandatory = $true)] [string]$p1,
-        [Parameter(Position = 1)] [string]$p2,
-        [Parameter(Position = 2)] [string]$p3
+        [Parameter(
+            Position = 0,
+            Mandatory = $true,
+            HelpMessage="Enter <KEY> or one of the following commands: `"+`", `"-`", `"*`".")]
+        [string]$p1,
+        [Parameter(Position = 1)]
+        [string]$p2,
+        [Parameter(Position = 2)]
+        [string]$p3
     )
     if ($p1 -eq "+") {
-        shortcut add $p2
+        shortcut add $p2 $p3
     } elseif ($p1 -eq "-") {
         if ($p2) {
-            shortcut remove $p2 $p3
+            shortcut remove $p2
         } else {
             Pop-Location
         }
