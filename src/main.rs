@@ -31,9 +31,6 @@ enum Command {
         /// Directory to place the executable, must be part of the PATH environment variable.
         #[arg(short, long)]
         path_location: PathBuf,
-        /// Value of $PROFILE variable in powershell.
-        #[arg(long)]
-        power_shell_profile: Option<PathBuf>,
     },
     /// Adds a shortcut.
     /// After one-time setup you can do: $ {command} + <KEY> <TARGET>
@@ -66,8 +63,7 @@ fn main() -> ExitCode {
         Command::Setup {
             command,
             path_location,
-            power_shell_profile,
-        } => shortcut::setup(command, path_location, power_shell_profile),
+        } => shortcut::setup(command, path_location),
         Command::Remove { key } => shortcut::remove(key),
         Command::Add { key, target } => shortcut::add(key, target),
         Command::List {} => shortcut::list(),
