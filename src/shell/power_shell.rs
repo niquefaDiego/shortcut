@@ -5,44 +5,57 @@ use {
     which::which,
 };
 
-const POWER_SHELL_EXE: &str = "PowerShell";
+const POWER_SHELL_EXE: &str = "pwsh";
+const WINDOWS_POWER_SHELL_EXE: &str = "powershell";
 const PROFILE_CONTENT: &str = include_str!("./script/script.ps1");
 
+/// PowerShell, includes both:
+/// - Windows PowerShell: powershell.exe
+/// - PowerShell: pwsh.exe
 pub struct PowerShell {
-    profile_location: String,
+    profile_locations: Vec<String>,
 }
 
 impl PowerShell {
     pub fn new() -> Result<Option<PowerShell>, String> {
-        match get_power_shell_default_profile() {
-            Err(err) => Err(err),
-            Ok(None) => Ok(None),
-            Ok(Some(profile_location)) => Ok(Some(PowerShell { profile_location })),
+        let mut profile_locations: Vec<String> = Vec::new();
+        for exec in [POWER_SHELL_EXE, WINDOWS_POWER_SHELL_EXE] {
+            match get_power_shell_default_profile(exec) {
+                Err(err) => return Err(err),
+                Ok(Some(profile_location)) => profile_locations.push(profile_location),
+                Ok(None) => (),
+            };
         }
+        if profile_locations.len() > 0 {
+            return Ok(Some(PowerShell { profile_locations }));
+        }
+        Ok(None)
     }
 }
 
 impl Shell for PowerShell {
     fn name(&self) -> &'static str {
-        POWER_SHELL_EXE
+        "PowerShell"
     }
 
     fn try_configure(&self, config: &Config) -> Result<(), String> {
-        let function = get_power_shell_function(&config);
-        setup_power_shell_profile(&config, &self.profile_location, &function)?;
+        for profile_location in &self.profile_locations {
+            let function = get_power_shell_function(&config);
+            setup_power_shell_profile(&config, &profile_location, &function)?;
+        }
         Ok(())
     }
 }
 
-pub fn get_power_shell_default_profile() -> Result<Option<String>, String> {
+fn get_power_shell_default_profile(exec: &str) -> Result<Option<String>, String> {
     // See the following docs for more info about PowerPhell profiles.
     // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
-    let power_shell_exe = match which(POWER_SHELL_EXE) {
+    let power_shell_exe = match which(exec) {
         Ok(exe_location) => exe_location,
         Err(_) => return Ok(None),
     };
     println!("{} found at {}", POWER_SHELL_EXE, power_shell_exe.display());
-    let mut command = Command::new(POWER_SHELL_EXE);
+    let mut command = Command::new(exec);
     // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1
     let command = command.args(["-Command", "Write-Output $PROFILE"]);
     let output = match command.output() {
@@ -53,8 +66,11 @@ pub fn get_power_shell_default_profile() -> Result<Option<String>, String> {
         }
     };
     if !output.status.success() {
-        let msg = r#"`PowerShell -Command "Write-Output" $PROFILE"` \
-                  exited with non-success status code"#;
+        let msg = format!(
+            r#"`{}.exe -Command "Write-Output" $PROFILE"` \
+                  exited with non-success status code"#,
+            exec
+        );
         return Err(msg.to_string());
     }
     // This will probably fail in some older versions of powershell, need some logic to parse

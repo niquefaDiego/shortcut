@@ -1,7 +1,12 @@
 
 # Shortcut
 
-Setup shortcuts for your `cd` in your Windows command lines (only CommandPrompt and PowerShell supported for now).
+Setup shortcuts for your `cd` in your Windows command lines.
+
+Supported shells:
+- Command Prompt: cmd.exe
+- PowerShell: pwsh.exe
+- Windows PowerShell: powershell.exe
 
 ## Getting started
 
