@@ -31,11 +31,33 @@ pub fn setup(command: String, path_location: PathBuf) -> Result<(), String> {
 }
 
 pub fn list() -> Result<(), String> {
-    let config = config::get_config()?;
+    let mut config = config::get_config()?;
     println!("Command: \"{}\"", config.command);
+    if config.shortcuts.len() == 0 {
+        println!("No shortcuts. See `shorcuts add --help` for instructions.");
+        return Ok(());
+    }
     println!("Shortcuts ({}):", config.shortcuts.len());
+    config.shortcuts.sort_by(|x, y| {
+        let a = x.value.to_lowercase();
+        let b = y.value.to_lowercase();
+        a.cmp(&b)
+    });
+    let width = config
+        .shortcuts
+        .iter()
+        .max_by(|x, y| {
+            let a = x.key.len();
+            let b = y.key.len();
+            a.cmp(&b)
+        })
+        .expect("Already asserted shortcuts list is not empty")
+        .key
+        .len();
     for shortcut in &config.shortcuts {
-        let text = format!("  {} -> {}", shortcut.key, shortcut.value);
+        let spaces = String::from_utf8(vec![' ' as u8; 1 + width - shortcut.key.len()])
+            .expect("String of 1 or more spaces must be a valid utf-8");
+        let text = format!("  {}{}{}", shortcut.key, spaces, shortcut.value);
         println!("{}", text);
     }
     Ok(())
@@ -43,12 +65,12 @@ pub fn list() -> Result<(), String> {
 
 pub fn add(key: String, target: PathBuf) -> Result<(), String> {
     let target = fs::to_absolute_path(&target)?;
-    let target = target.to_string_lossy();
     let add_result = config::add_shortcut(&key, &target)?;
     match add_result {
         ConfigAddResult::NoChange => println!(
             "Nothing done, shortcut already exists: {} -> {}",
-            key, target
+            key,
+            target.display()
         ),
         ConfigAddResult::Created(sc) => {
             println!("Successfully added shortcut: {} -> {}", sc.key, sc.value)

@@ -35,7 +35,7 @@ impl PowerShell {
 
 impl Shell for PowerShell {
     fn name(&self) -> &'static str {
-        POWER_SHELL_EXE
+        "PowerShell"
     }
 
     fn try_configure(&self, config: &Config) -> Result<(), String> {

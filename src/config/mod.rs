@@ -203,9 +203,13 @@ pub fn get_config() -> Result<Config, String> {
     get_config_from_file(&config_file)
 }
 
-pub fn add_shortcut(key: &str, path: &str) -> Result<ConfigAddResult, String> {
+pub fn add_shortcut(key: &str, path: &Path) -> Result<ConfigAddResult, String> {
     let config_file = get_config_file()?;
     let mut config = get_config_from_file(&config_file)?;
+    if !path.is_dir() {
+        return Err(format!("\"{}\" is not a directory", path.display()).to_string());
+    }
+    let path = path.to_string_lossy();
     let add_result = config.add(key.to_string(), path.to_string())?;
     if add_result != ConfigAddResult::NoChange {
         let serialized_config = config.serialize();
