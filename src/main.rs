@@ -34,7 +34,7 @@ enum Command {
         path_location: Option<PathBuf>,
     },
     /// Adds a shortcut.
-    /// After one-time setup you can do: $ {command} + <KEY> <TARGET>
+    /// After one-time setup you can do: $ {command} -a <KEY> <TARGET>
     Add {
         /// Shortcut to use go to the target directory.
         key: String,
@@ -42,13 +42,13 @@ enum Command {
         target: PathBuf,
     },
     /// Removes a shortcut.
-    /// After one-time setup you can do: $ {command} - <KEY>
+    /// After one-time setup you can do: $ {command} -r <KEY>
     Remove {
         /// Shortcut key to remove
         key: String,
     },
     /// Lists all the existing shortcuts.
-    /// After one-time setup you can do: $ {command} *
+    /// After one-time setup you can do: $ {command} -l
     List {},
     /// Get the target directory given a key, if there is not shortcut for the given key,
     /// then the key will be returned.

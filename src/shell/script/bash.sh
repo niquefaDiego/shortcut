@@ -13,6 +13,5 @@ function s() {
     else
         pushd $(shortcut get "$1")
     fi 
-    pwd
 }
 # ---------- shortcut end ----------
