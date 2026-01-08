@@ -30,7 +30,7 @@ pub struct Config {
     /// Currently 0.1.0 it the only valid version.
     pub version: ConfigVersion,
     /// Directory in PATH in which the command executable is located.
-    pub path_location: String,
+    pub path_location: Option<String>,
     /// Name of the exectuable to do the cd command using the shortcuts.
     pub command: String,
     /// List of all shortcuts.
@@ -84,8 +84,11 @@ impl Config {
         let mut ans: Vec<String> = Vec::new();
         ans.reserve_exact(self.shortcuts.len() * 2 + 3);
         ans.push(self.version.to_string());
+        ans.push(match &self.path_location {
+            Some(dir) => dir.clone(),
+            None => "".to_string(),
+        });
         ans.push(self.command.clone());
-        ans.push(self.path_location.clone());
         for shortcut in &self.shortcuts {
             ans.push(shortcut.key.clone());
             ans.push(shortcut.value.clone());
@@ -103,8 +106,12 @@ impl Config {
             return Err("Config file has an invalid number of lines".to_string());
         }
         let version = ConfigVersion::from_str(&lines[0])?;
-        let command = lines[1].clone();
-        let path_location = lines[2].clone();
+        let path_location: Option<String> = if lines[1].len() == 0 {
+            None
+        } else {
+            Some(lines[1].clone())
+        };
+        let command = lines[2].clone();
         let mut shortcuts: Vec<ShortcutKV> = vec![];
         shortcuts.reserve((lines.len() - HEADER_LINES) / 2);
         for i in (HEADER_LINES..lines.len()).step_by(2) {
@@ -229,9 +236,18 @@ pub fn remove_shortcut(key: &str) -> Result<ConfigRemoveResult, String> {
     Ok(remove_result)
 }
 
-pub fn create_config(command: &str, path_location: &Path) -> Result<Config, String> {
-    let path_location = fs::to_absolute_path(path_location)?;
-    let path_location = path_location.to_string_lossy();
+pub fn create_config(command: &str, path_location: Option<PathBuf>) -> Result<Config, String> {
+    let path_location: Option<String> = match path_location {
+        Some(dir) => {
+            let absolute_dir = fs::to_absolute_path(&dir)?;
+            if !absolute_dir.is_dir() {
+                let msg = format!("'{}' is not a valid directory", dir.display());
+                return Err(msg);
+            }
+            Some(absolute_dir.to_string_lossy().to_string())
+        }
+        None => None,
+    };
     let config_file = get_config_file()?;
     let config = match read_config(&config_file)? {
         Some(config) => {
@@ -241,7 +257,7 @@ pub fn create_config(command: &str, path_location: &Path) -> Result<Config, Stri
         }
         None => Config {
             version: Config::latest(),
-            path_location: path_location.to_string(),
+            path_location: path_location,
             command: command.to_string(),
             shortcuts: vec![],
         },
@@ -255,22 +271,24 @@ pub fn create_config(command: &str, path_location: &Path) -> Result<Config, Stri
 mod tests {
     use super::*;
 
+    fn run_test(c: Config) {
+        let serialized = c.serialize();
+        let deserialized = Config::deserialize(serialized).expect("Deserialization should work");
+        assert_eq!(c, deserialized);
+    }
+
     #[test]
     fn test_config_serialization() {
-        let c0 = Config {
+        run_test(Config {
             version: ConfigVersion::V0,
-            path_location: "C:\\Path".to_string(),
+            path_location: Some("C:\\Path".to_string()),
             command: "cd2".to_string(),
             shortcuts: vec![],
-        };
-        let c0_serialized = c0.serialize();
-        let c0_deserialized =
-            Config::deserialize(c0_serialized).expect("Deserialization should work");
-        assert_eq!(c0, c0_deserialized);
+        });
 
-        let c1 = Config {
+        run_test(Config {
             version: ConfigVersion::V0,
-            path_location: "C:\\Path".to_string(),
+            path_location: Some("C:\\Path".to_string()),
             command: "changedir".to_string(),
             shortcuts: vec![
                 ShortcutKV {
@@ -282,10 +300,33 @@ mod tests {
                     value: "C:\\Program Files (x84)".to_string(),
                 },
             ],
-        };
-        let c1_serialized = c1.serialize();
-        let c1_deserialized =
-            Config::deserialize(c1_serialized).expect("Deserialization should work");
-        assert_eq!(c1, c1_deserialized);
+        });
+
+        run_test(Config {
+            version: ConfigVersion::V0,
+            path_location: None,
+            command: "s".to_string(),
+            shortcuts: vec![
+                ShortcutKV {
+                    key: "pics".to_string(),
+                    value: "/home/users/spiderman/Pictures".to_string(),
+                },
+                ShortcutKV {
+                    key: "src".to_string(),
+                    value: "/home/users/spiderman/GitHub".to_string(),
+                },
+                ShortcutKV {
+                    key: "nvim".to_string(),
+                    value: "/home/users/spiderman/.config/nvim".to_string(),
+                },
+            ],
+        });
+
+        run_test(Config {
+            version: ConfigVersion::V0,
+            path_location: None,
+            command: "s".to_string(),
+            shortcuts: vec![],
+        });
     }
 }

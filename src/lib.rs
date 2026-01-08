@@ -1,6 +1,7 @@
 use {
+    colored::Colorize,
     config::{ConfigAddResult, ConfigRemoveResult},
-    shell::{CommandPrompt, PowerShell, Shell},
+    shell::{Bash, CommandPrompt, PowerShell, Shell},
     std::path::{Path, PathBuf},
 };
 
@@ -8,20 +9,38 @@ pub mod config;
 pub mod fs;
 pub mod shell;
 
-pub fn setup(command: String, path_location: PathBuf) -> Result<(), String> {
-    let config = config::create_config(&command, &path_location)?;
+pub fn setup(command: String, path_location: Option<PathBuf>) -> Result<(), String> {
+    let config = config::create_config(&command, path_location)?;
 
-    // Find and configure command prompt
+    // TODO: Use macro_rules! to avoid repeating myself :)
+    // Bash
+    match Bash::new() {
+        Err(msg) => {
+            let msg = format!("Unexpected error looking for Bash: {}", msg);
+            eprintln!("{}", msg.red());
+        }
+        Ok(shell) => {
+            shell.map(|x| x.configure(&config));
+        }
+    }
+
+    // Command prompt
     match CommandPrompt::new() {
-        Err(msg) => println!("Unexpected error looking for Command Prompt: {}", msg),
+        Err(msg) => {
+            let msg = format!("Unexpected error looking for Command Prompt: {}", msg);
+            eprintln!("{}", msg.red());
+        }
         Ok(shell) => {
             shell.map(|x| x.configure(&config));
         }
     };
 
-    // Find and configure power shell
+    // Power shell
     match PowerShell::new() {
-        Err(msg) => println!("Unexpected error looking for PowerShell: {}", msg),
+        Err(msg) => {
+            let msg = format!("Unexpected error looking for Command Prompt: {}", msg);
+            eprintln!("{}", msg.red());
+        }
         Ok(shell) => {
             shell.map(|x| x.configure(&config));
         }

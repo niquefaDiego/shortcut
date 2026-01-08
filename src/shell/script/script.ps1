@@ -13,16 +13,14 @@ function s {
         [Parameter(Position = 2)]
         [string]$p3
     )
-    if ($p1 -eq "+") {
+    if ($p1 -eq "-a") {
         shortcut add $p2 $p3
-    } elseif ($p1 -eq "-") {
-        if ($p2) {
-            shortcut remove $p2
-        } else {
-            Pop-Location
-        }
-    } elseif ($p1 -eq "*") {
+    } elseif ($p1 -eq "-r") {
+        shortcut remove $p2
+    } elseif ($p1 -eq "-l") {
         shortcut list
+    } elseif ($p1 -eq "-l") {
+        Pop-Location
     } else {
         $dir = shortcut get $p1
         Push-Location "$dir"

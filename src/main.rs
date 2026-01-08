@@ -28,12 +28,13 @@ enum Command {
         /// Command used to change directory using the shortcuts.
         #[arg(short, long, default_value_t=String::from("s"))]
         command: String,
-        /// Directory to place the executable, must be part of the PATH environment variable.
+        /// Need for Command Prompt setup only. Directory to place a .bat script,
+        /// must be part of the PATH environment variable.
         #[arg(short, long)]
-        path_location: PathBuf,
+        path_location: Option<PathBuf>,
     },
     /// Adds a shortcut.
-    /// After one-time setup you can do: $ {command} + <KEY> <TARGET>
+    /// After one-time setup you can do: $ {command} -a <KEY> <TARGET>
     Add {
         /// Shortcut to use go to the target directory.
         key: String,
@@ -41,13 +42,13 @@ enum Command {
         target: PathBuf,
     },
     /// Removes a shortcut.
-    /// After one-time setup you can do: $ {command} - <KEY>
+    /// After one-time setup you can do: $ {command} -r <KEY>
     Remove {
         /// Shortcut key to remove
         key: String,
     },
     /// Lists all the existing shortcuts.
-    /// After one-time setup you can do: $ {command} *
+    /// After one-time setup you can do: $ {command} -l
     List {},
     /// Get the target directory given a key, if there is not shortcut for the given key,
     /// then the key will be returned.
