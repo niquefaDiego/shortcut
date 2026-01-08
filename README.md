@@ -1,12 +1,15 @@
 
 # Shortcut
 
-Setup shortcuts for your `cd` in your Windows command lines.
+Setup shortcuts for your `cd` in you terminal:
 
 Supported shells:
-- Command Prompt: cmd.exe
-- PowerShell: pwsh.exe
-- Windows PowerShell: powershell.exe
+- Bash: `bash`
+- Command Prompt: `1cmd.exe`
+- PowerShell: `pwsh.exe`
+- Windows PowerShell: `powershell.exe`
+
+Support for Bourne Shell (`sh`) comming soon :)
 
 ## Getting started
 
