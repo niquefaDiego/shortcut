@@ -28,9 +28,10 @@ enum Command {
         /// Command used to change directory using the shortcuts.
         #[arg(short, long, default_value_t=String::from("s"))]
         command: String,
-        /// Directory to place the executable, must be part of the PATH environment variable.
+        /// Need for Command Prompt setup only. Directory to place a .bat script,
+        /// must be part of the PATH environment variable.
         #[arg(short, long)]
-        path_location: PathBuf,
+        path_location: Option<PathBuf>,
     },
     /// Adds a shortcut.
     /// After one-time setup you can do: $ {command} + <KEY> <TARGET>

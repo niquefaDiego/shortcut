@@ -71,8 +71,23 @@ pub fn write_str(file: &Path, content: &str) -> Result<(), String> {
 
 /// Writes the given vector of lines into the file.
 pub fn write_lines(file: &Path, lines: &Vec<String>) -> Result<(), String> {
-    let file_content = lines.join("\n");
-    write_str(file, &file_content)
+    let fs_file = match std::fs::File::create(file) {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(format!("Error reading file: '{}': {}", file.display(), err).to_string());
+        }
+    };
+    let mut writer = std::io::BufWriter::new(fs_file);
+    use std::io::Write;
+    for line in lines {
+        if let Err(err) = writeln!(writer, "{}", line) {
+            return Err(format!("Error writing file '{}': {}", file.display(), err).to_string());
+        }
+    }
+    if let Err(err) = writer.flush() {
+        return Err(format!("Error saving file '{}': {}", file.display(), err).to_string());
+    }
+    Ok(())
 }
 
 /// Converts a path to an absolute path, replacing the staring '~' component with the home directory
