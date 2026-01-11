@@ -121,13 +121,14 @@ pub fn remove(key: String) -> Result<(), String> {
 }
 
 pub fn get(key: String) -> Result<(), String> {
+    let key_lowercase = key.to_lowercase();
     let config = config::get_config()?;
     if Path::new(&key).is_dir() {
         println!("{}", key);
         return Ok(());
     }
     for shortcut in &config.shortcuts {
-        if key == shortcut.key {
+        if key_lowercase == shortcut.key.to_lowercase() {
             println!("{}", shortcut.value.clone());
             return Ok(());
         }

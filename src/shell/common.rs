@@ -47,10 +47,8 @@ pub fn replace_file_content(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     #[test]
-    fn test_replace_file_content() {
+    fn replace_file_content() {
         let existing_content: Vec<String> = vec!["0", "1", "2", "X", "A", "B", "C", "D", "Y"]
             .into_iter()
             .map(|x| x.to_string())
@@ -63,7 +61,7 @@ mod test {
             .into_iter()
             .map(|x| x.to_string())
             .collect();
-        let updated_content = replace_file_content(existing_content, &new_content);
+        let updated_content = super::replace_file_content(existing_content, &new_content);
         assert_eq!(expected, updated_content);
 
         let existing_content: Vec<String> = vec!["X", "1", "2", "3", "Y"]
@@ -72,7 +70,7 @@ mod test {
             .collect();
         let new_content = existing_content.clone();
         let expected = existing_content.clone();
-        let updated_content = replace_file_content(existing_content, &new_content);
+        let updated_content = super::replace_file_content(existing_content, &new_content);
         assert_eq!(expected, updated_content);
     }
 }
