@@ -217,6 +217,9 @@ pub fn create_config(command: &str, path_location: Option<PathBuf>) -> Result<Co
     let config = match read_config(&config_file)? {
         Some(config) => {
             let mut config = config;
+            if let Some(new_path_location) = path_location {
+                config.path_location = Some(new_path_location);
+            }
             config.command = command.to_string();
             config
         }
