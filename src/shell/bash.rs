@@ -62,6 +62,6 @@ fn get_bash_function(config: &Config) -> Vec<String> {
         .filter(|x| x.trim().len() > 0)
         .map(|s| s.to_owned())
         .collect();
-    new_content[3] = format!("{} {{", config.command).to_string();
+    new_content[3] = format!("function {}() {{", config.command).to_string();
     new_content
 }

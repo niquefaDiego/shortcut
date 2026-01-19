@@ -62,6 +62,6 @@ fn get_sh_function(config: &Config) -> Vec<String> {
         .filter(|x| x.trim().len() > 0)
         .map(|s| s.to_owned())
         .collect();
-    new_content[4] = format!("{} {{", config.command).to_string();
+    new_content[4] = format!("{}() {{", config.command).to_string();
     new_content
 }
