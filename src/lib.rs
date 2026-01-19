@@ -1,4 +1,5 @@
 use {
+    crate::shell::BourneShell,
     colored::Colorize,
     config::{ConfigAddResult, ConfigRemoveResult},
     shell::{Bash, CommandPrompt, PowerShell, Shell},
@@ -9,14 +10,24 @@ pub mod config;
 pub mod fs;
 pub mod shell;
 
-pub fn setup(command: String, path_location: Option<PathBuf>) -> Result<(), String> {
+pub fn set_up(command: String, path_location: Option<PathBuf>) -> Result<(), String> {
     let config = config::create_config(&command, path_location)?;
-
-    // TODO: Use macro_rules! to avoid repeating myself :)
+    // TODO: Use macro_rules! to avoid code duplication
     // Bash
     match Bash::new() {
         Err(msg) => {
             let msg = format!("Unexpected error looking for Bash: {}", msg);
+            eprintln!("{}", msg.red());
+        }
+        Ok(shell) => {
+            shell.map(|x| x.configure(&config));
+        }
+    }
+
+    // BourneShell
+    match BourneShell::new() {
+        Err(msg) => {
+            let msg = format!("Unexpected error looking for Bourne Shell: {}", msg);
             eprintln!("{}", msg.red());
         }
         Ok(shell) => {
@@ -121,13 +132,14 @@ pub fn remove(key: String) -> Result<(), String> {
 }
 
 pub fn get(key: String) -> Result<(), String> {
+    let key_lowercase = key.to_lowercase();
     let config = config::get_config()?;
     if Path::new(&key).is_dir() {
         println!("{}", key);
         return Ok(());
     }
     for shortcut in &config.shortcuts {
-        if key == shortcut.key {
+        if key_lowercase == shortcut.key.to_lowercase() {
             println!("{}", shortcut.value.clone());
             return Ok(());
         }

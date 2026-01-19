@@ -24,7 +24,7 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Do one-time setup of your shells to use shortcuts.
-    Setup {
+    SetUp {
         /// Command used to change directory using the shortcuts.
         #[arg(short, long, default_value_t=String::from("s"))]
         command: String,
@@ -61,10 +61,10 @@ enum Command {
 fn main() -> ExitCode {
     let args = Args::parse();
     let result = match args.command {
-        Command::Setup {
+        Command::SetUp {
             command,
             path_location,
-        } => shortcut::setup(command, path_location),
+        } => shortcut::set_up(command, path_location),
         Command::Remove { key } => shortcut::remove(key),
         Command::Add { key, target } => shortcut::add(key, target),
         Command::List {} => shortcut::list(),

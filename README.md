@@ -19,16 +19,18 @@ Install:
 $ cargo install --path .
 ```
 
-Do one-time setup, you need to specify the name of the command you will use to change directory and a directory that is part of the `PATH` environment variable:
+Do one-time setup:
 
 ```
-$ shortcut setup --command s --path-location C:\Path
+$ shortcut set-up --command s
 ```
+
+*Note: If you want to setup Command Prompt you need to also provide the --path-location argument with a directory that is part of the PATH environment variable.*
 
 You can add some shortcuts to frequent directories (Note `s` is the command you specified above, you can choose a different name):
 ```
-$ s + dl ~/Downloads
-$ s + repo "C:\Code\GitHub repositories"
+$ s -a dl ~/Downloads
+$ s -a repo "C:\Code\GitHub repositories"
 ```
 
 Now instead of `$ cd "C:\Code\GitHub repositories"`, you can do:
@@ -39,17 +41,17 @@ $ s repo
 
 You can go back to the previous directory by doing:
 ```
-$ s -
+$ s -b
 ```
 
 If you no longer need the shortcut to `~/Downloads` you can remove it like this:
 ```
-$ s - dl
+$ s -r dl
 ```
 
 To see a list of all your shortcuts you can do:
 ```
-$ s *
+$ s -l
 ```
 
 ## Code structure

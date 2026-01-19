@@ -2,6 +2,7 @@ use {
     crate::fs,
     directories::ProjectDirs,
     std::{
+        cell::RefCell,
         fmt,
         path::{Path, PathBuf},
         str::FromStr,
@@ -52,7 +53,7 @@ pub enum ConfigRemoveResult {
 
 const ORGANIZATION: &str = "niquefaDiego";
 const APPLICATION: &str = "Shortcuts";
-const CONFIG_FILE_NAME: &str = "shortcuts.config";
+const CONFIG_FILE_NAME: &str = "config.txt";
 
 impl Config {
     pub fn latest() -> ConfigVersion {
@@ -96,7 +97,7 @@ impl Config {
         ans
     }
 
-    pub fn deserialize(lines: Vec<String>) -> Result<Self, String> {
+    pub fn from(lines: Vec<String>) -> Result<Self, String> {
         const HEADER_LINES: usize = 3;
         if lines.len() < HEADER_LINES {
             let msg = format!("Config must contain at least {} lines", HEADER_LINES);
@@ -129,7 +130,12 @@ impl Config {
     }
 
     pub fn add(&mut self, key: String, value: String) -> Result<ConfigAddResult, String> {
-        match self.shortcuts.iter().position(|x| x.key == key) {
+        let key_lowercase = key.to_lowercase();
+        match self
+            .shortcuts
+            .iter()
+            .position(|x| x.key.to_lowercase() == key_lowercase)
+        {
             Some(position) => {
                 if value == self.shortcuts[position].value {
                     return Ok(ConfigAddResult::NoChange);
@@ -160,49 +166,8 @@ impl Config {
     }
 }
 
-fn get_project_dirs() -> Result<ProjectDirs, String> {
-    match ProjectDirs::from("", ORGANIZATION, APPLICATION) {
-        Some(proj_dirs) => Ok(proj_dirs),
-        None => Err(
-            "No valid home directory path could be retrieved from the operating system."
-                .to_string(),
-        ),
-    }
-}
-
-fn get_config_file() -> Result<PathBuf, String> {
-    let proj_dirs = get_project_dirs()?;
-    let dir = proj_dirs.config_local_dir();
-    fs::ensure_dir(dir)?;
-    Ok(PathBuf::from(dir).join(CONFIG_FILE_NAME))
-}
-
-fn read_config(config_file: &Path) -> Result<Option<Config>, String> {
-    match fs::read_lines(config_file)? {
-        Some(content) => {
-            let config = match Config::deserialize(content) {
-                Ok(config) => config,
-                Err(err) => {
-                    let msg = format!(
-                        "Corrupted config file: \"{}\".\n{}",
-                        config_file.display(),
-                        err
-                    );
-                    return Err(msg.to_string());
-                }
-            };
-            Ok(Some(config))
-        }
-        None => Ok(None),
-    }
-}
-
-fn get_config_from_file(config_file: &Path) -> Result<Config, String> {
-    match read_config(config_file) {
-        Ok(Some(config)) => Ok(config),
-        Ok(None) => Err("Config file not found. Run one-time setup (see --help)".to_string()),
-        Err(err) => Err(err),
-    }
+pub fn override_config_file(test_config_file: PathBuf) {
+    TEST_CONFIG_FILE.replace(Some(test_config_file));
 }
 
 pub fn get_config() -> Result<Config, String> {
@@ -267,18 +232,72 @@ pub fn create_config(command: &str, path_location: Option<PathBuf>) -> Result<Co
     Ok(config)
 }
 
+// ------------------------- private API -------------------------
+
+fn get_project_dirs() -> Result<ProjectDirs, String> {
+    match ProjectDirs::from("", ORGANIZATION, APPLICATION) {
+        Some(proj_dirs) => Ok(proj_dirs),
+        None => Err(
+            "No valid home directory path could be retrieved from the operating system."
+                .to_string(),
+        ),
+    }
+}
+
+thread_local! {
+    pub static TEST_CONFIG_FILE: RefCell<Option<PathBuf>> = RefCell::new(None);
+}
+
+fn get_config_file() -> Result<PathBuf, String> {
+    if let Some(file) = TEST_CONFIG_FILE.with_borrow(|x| x.clone()) {
+        return Ok(file);
+    }
+    let proj_dirs = get_project_dirs()?;
+    let dir = proj_dirs.config_local_dir();
+    fs::ensure_dir(dir)?;
+    Ok(PathBuf::from(dir).join(CONFIG_FILE_NAME))
+}
+
+fn read_config(config_file: &Path) -> Result<Option<Config>, String> {
+    match fs::read_lines(config_file)? {
+        Some(content) => {
+            let config = match Config::from(content) {
+                Ok(config) => config,
+                Err(err) => {
+                    let msg = format!(
+                        "Corrupted config file: \"{}\".\n{}",
+                        config_file.display(),
+                        err
+                    );
+                    return Err(msg.to_string());
+                }
+            };
+            Ok(Some(config))
+        }
+        None => Ok(None),
+    }
+}
+
+fn get_config_from_file(config_file: &Path) -> Result<Config, String> {
+    match read_config(config_file) {
+        Ok(Some(config)) => Ok(config),
+        Ok(None) => Err("Config file not found. Run one-time setup (see --help)".to_string()),
+        Err(err) => Err(err),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn run_test(c: Config) {
         let serialized = c.serialize();
-        let deserialized = Config::deserialize(serialized).expect("Deserialization should work");
+        let deserialized = Config::from(serialized).expect("Deserialization should work");
         assert_eq!(c, deserialized);
     }
 
     #[test]
-    fn test_config_serialization() {
+    fn config_serialization_end_parsing() {
         run_test(Config {
             version: ConfigVersion::V0,
             path_location: Some("C:\\Path".to_string()),
