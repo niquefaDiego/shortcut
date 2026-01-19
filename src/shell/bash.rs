@@ -9,7 +9,7 @@ use {
 pub struct Bash {}
 
 const NAME: &str = "Bash";
-const BASH_FUNCTION_FILE: &str = include_str!("./script/bash.sh");
+const BASH_FUNCTION_FILE: &str = include_str!("./script/script-bash.sh");
 
 impl Bash {
     pub fn new() -> Result<Option<Bash>, String> {
@@ -31,10 +31,10 @@ impl Shell for Bash {
     }
 
     fn try_configure(&self, config: &Config) -> Result<(), String> {
-        let bashrc_dir = std::path::PathBuf::from("~/.bashrc");
-        let bashrc_dir = fs::to_absolute_path(&bashrc_dir)?;
+        let bashrc_path = std::path::PathBuf::from("~/.bashrc");
+        let bashrc_path = fs::to_absolute_path(&bashrc_path)?;
         let function = get_bash_function(&config);
-        setup_bash(&config, &bashrc_dir, &function)?;
+        setup_bash(&config, &bashrc_path, &function)?;
         Ok(())
     }
 }

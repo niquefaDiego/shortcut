@@ -5,7 +5,7 @@ use {
 
 #[test]
 fn posix_script() {
-    setup("posix");
+    set_up_test("posix");
     let cmd = Command::new("sh")
         .arg("tests/shell/script/posix-test.sh")
         .output()
@@ -19,19 +19,31 @@ fn posix_script() {
         eprintln!("Status: failed");
         eprintln!("Stderr: {}", stderr);
     }
+    // TODO: Validate script worked correctly with assertions
 }
 
 #[test]
-fn bash_script() {}
+fn bash_script() {
+    set_up_test("bash");
+    // TODO
+}
 
 #[test]
-fn power_shell_script() {}
+fn power_shell_script() {
+    set_up_test("pwsh");
+    // TODO
+}
 
 #[test]
-fn command_prompt_script() {}
+fn command_prompt_script() {
+    set_up_test("cmd");
+    // TODO
+}
 
-fn setup(name: &str) {
+fn set_up_test(name: &str) {
     let mut config_file = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    config_file.push(name);
+    config_file.push(format!("{}.cfg", name));
+    println!("Configuring with settings file: {}", config_file.display());
     override_config_file(config_file);
+    shortcut::set_up("s".to_string(), None).expect("setup should not fail in integration tests");
 }

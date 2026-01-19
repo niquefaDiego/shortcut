@@ -4,5 +4,5 @@ shortcut() {
     $BINARY "$@"
 }
 
-. ./src/shell/script/posix.sh
+. ./src/shell/script/script-posix.sh
 . ./tests/shell/script/run-test.sh

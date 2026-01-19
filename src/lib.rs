@@ -1,4 +1,5 @@
 use {
+    crate::shell::BourneShell,
     colored::Colorize,
     config::{ConfigAddResult, ConfigRemoveResult},
     shell::{Bash, CommandPrompt, PowerShell, Shell},
@@ -9,14 +10,24 @@ pub mod config;
 pub mod fs;
 pub mod shell;
 
-pub fn setup(command: String, path_location: Option<PathBuf>) -> Result<(), String> {
+pub fn set_up(command: String, path_location: Option<PathBuf>) -> Result<(), String> {
     let config = config::create_config(&command, path_location)?;
-
-    // TODO: Use macro_rules! to avoid repeating myself :)
+    // TODO: Use macro_rules! to avoid code duplication
     // Bash
     match Bash::new() {
         Err(msg) => {
             let msg = format!("Unexpected error looking for Bash: {}", msg);
+            eprintln!("{}", msg.red());
+        }
+        Ok(shell) => {
+            shell.map(|x| x.configure(&config));
+        }
+    }
+
+    // BourneShell
+    match BourneShell::new() {
+        Err(msg) => {
+            let msg = format!("Unexpected error looking for Bourne Shell: {}", msg);
             eprintln!("{}", msg.red());
         }
         Ok(shell) => {

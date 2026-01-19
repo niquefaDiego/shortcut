@@ -22,7 +22,7 @@ $ cargo install --path .
 Do one-time setup:
 
 ```
-$ shortcut setup --command s
+$ shortcut set-up --command s
 ```
 
 *Note: If you want to setup Command Prompt you need to also provide the --path-location argument with a directory that is part of the PATH environment variable.*
